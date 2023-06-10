@@ -58,9 +58,7 @@ class PlayerGestureHelper(
 
     private val tapGestureDetector = gestureDetector(playerView.context) {
         onSingleTapConfirmed {
-            playerView.apply {
-                if (!isControllerFullyVisible) showController() else hideController()
-            }
+            playerView.showHideController()
 
             return@onSingleTapConfirmed true
         }
@@ -69,26 +67,26 @@ class PlayerGestureHelper(
             // Disables double tap gestures if view is locked
             if (isControlsLocked) return@onDoubleTap false
 
-            val viewCenterX = playerView.measuredWidth / 2
-            val isFastForward = e.x.toInt() > viewCenterX
-
+            val isFastForward = e.isInRightHalfOf(playerView)
             performDoubleTapSeek(isFastForward)
 
             return@onDoubleTap true
         }
     }
 
+    private fun PlayerView.showHideController() {
+        if (!isControllerFullyVisible) showController() else hideController()
+    }
+
+    private fun MotionEvent.isInRightHalfOf(view: View): Boolean {
+        val viewCenterX = view.measuredWidth / 2
+        return x.toInt() > viewCenterX
+    }
+
     private fun performDoubleTapSeek(fastForward: Boolean) {
-        val currentPos = playerView.player?.currentPosition ?: 0
-        if (fastForward) {
-            playerView.player?.seekTo(currentPos + appPreferences.playerSeekForwardIncrement)
-        } else {
-            playerView.player?.seekTo(
-                (currentPos - appPreferences.playerSeekBackIncrement).coerceAtLeast(
-                    0
-                )
-            )
-        }
+        if (fastForward)
+            seeker.fastForward()
+        else seeker.rewind()
     }
 
     @SuppressLint("SetTextI18n")
