@@ -25,8 +25,9 @@ import dev.jdtech.jellyfin.player.video.R
 import dev.jdtech.jellyfin.repository.JellyfinRepository
 import dev.jdtech.jellyfin.utils.bif.BifData
 import dev.jdtech.jellyfin.utils.bif.BifUtil
-import java.util.UUID
-import javax.inject.Inject
+import dev.jdtech.jellyfin.utils.seeker.DefaultSeeker
+import dev.jdtech.jellyfin.utils.seeker.SeekParameters
+import dev.jdtech.jellyfin.utils.seeker.Seeker
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -36,6 +37,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.util.UUID
+import javax.inject.Inject
 
 @HiltViewModel
 class PlayerActivityViewModel
@@ -45,6 +48,8 @@ constructor(
     private val jellyfinRepository: JellyfinRepository,
     private val appPreferences: AppPreferences,
 ) : ViewModel(), Player.Listener {
+
+    val seeker: Seeker
     val player: Player
 
     private val _navigateBack = MutableLiveData<Boolean>()
@@ -110,6 +115,8 @@ constructor(
                 .setSeekForwardIncrementMs(appPreferences.playerSeekForwardIncrement)
                 .build()
         }
+        val seekParameters = SeekParameters.fromUserPreferences(appPreferences)
+        seeker = DefaultSeeker(seekParameters, player)
     }
 
     fun initializePlayer(
@@ -250,7 +257,6 @@ constructor(
                             } else {
                                 "S${item.parentIndexNumber}:E${item.indexNumber}-${item.indexNumberEnd} - ${item.name}"
                             }
-
                         else
                             _currentItemTitle.value = item.name
 
@@ -272,9 +278,11 @@ constructor(
             ExoPlayer.STATE_IDLE -> {
                 stateString = "ExoPlayer.STATE_IDLE      -"
             }
+
             ExoPlayer.STATE_BUFFERING -> {
                 stateString = "ExoPlayer.STATE_BUFFERING -"
             }
+
             ExoPlayer.STATE_READY -> {
                 stateString = "ExoPlayer.STATE_READY     -"
                 currentAudioTracks.clear()
@@ -287,6 +295,7 @@ constructor(
                                 TrackType.AUDIO -> {
                                     currentAudioTracks.add(it)
                                 }
+
                                 TrackType.SUBTITLE -> {
                                     currentSubtitleTracks.add(it)
                                 }
@@ -296,6 +305,7 @@ constructor(
                 }
                 _fileLoaded.value = true
             }
+
             ExoPlayer.STATE_ENDED -> {
                 stateString = "ExoPlayer.STATE_ENDED     -"
                 _navigateBack.value = true

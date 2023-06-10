@@ -63,7 +63,8 @@ class PlayerActivity : BasePlayerActivity() {
                 appPreferences,
                 this,
                 binding.playerView,
-                getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                getSystemService(Context.AUDIO_SERVICE) as AudioManager,
+                viewModel.seeker
             )
         }
 
@@ -109,6 +110,7 @@ class PlayerActivity : BasePlayerActivity() {
                         "trackselectiondialog"
                     )
                 }
+
                 is ExoPlayer -> {
                     val mappedTrackInfo =
                         viewModel.trackSelector.currentMappedTrackInfo ?: return@setOnClickListener
@@ -159,6 +161,7 @@ class PlayerActivity : BasePlayerActivity() {
                         "trackselectiondialog"
                     )
                 }
+
                 is ExoPlayer -> {
                     val mappedTrackInfo =
                         viewModel.trackSelector.currentMappedTrackInfo ?: return@setOnClickListener
@@ -199,7 +202,7 @@ class PlayerActivity : BasePlayerActivity() {
 
         skipIntroButton.setOnClickListener {
             viewModel.currentIntro.value?.let {
-                binding.playerView.player?.seekTo((it.introEnd * 1000).toLong())
+                viewModel.seeker.seekTo(seconds = it.introEnd)
             }
         }
 

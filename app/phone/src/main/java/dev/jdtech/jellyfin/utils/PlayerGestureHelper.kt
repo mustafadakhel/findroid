@@ -20,6 +20,7 @@ import dev.jdtech.jellyfin.isControlsLocked
 import dev.jdtech.jellyfin.mpv.MPVPlayer
 import dev.jdtech.jellyfin.utils.gesture.gestureDetector
 import dev.jdtech.jellyfin.utils.gesture.scaleGestureDetector
+import dev.jdtech.jellyfin.utils.seeker.Seeker
 import kotlin.math.abs
 import timber.log.Timber
 
@@ -27,7 +28,8 @@ class PlayerGestureHelper(
     private val appPreferences: AppPreferences,
     private val activity: PlayerActivity,
     private val playerView: PlayerView,
-    private val audioManager: AudioManager
+    private val audioManager: AudioManager,
+    private val seeker: Seeker
 ) {
     /**
      * Tracks whether video content should fill the screen, cutting off unwanted content on the sides.
