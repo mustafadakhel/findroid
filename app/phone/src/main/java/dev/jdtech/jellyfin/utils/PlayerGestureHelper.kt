@@ -14,7 +14,6 @@ import android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import dev.jdtech.jellyfin.AppPreferences
-import dev.jdtech.jellyfin.Constants
 import dev.jdtech.jellyfin.PlayerActivity
 import dev.jdtech.jellyfin.isControlsLocked
 import dev.jdtech.jellyfin.mpv.MPVPlayer
@@ -23,6 +22,14 @@ import dev.jdtech.jellyfin.utils.gesture.scaleGestureDetector
 import dev.jdtech.jellyfin.utils.seeker.Seeker
 import kotlin.math.abs
 import timber.log.Timber
+
+private const val MinimumSeekSwipeDistance = 50
+private const val MinimumPostScaleWaitTimeMillis = 200
+private const val GestureExclusionAreaVertical = 48
+private const val GestureExclusionAreaHorizontal = 24
+private const val FullSwipeRangeScreenRatio = 0.66f
+private const val ZoomScaleBase = 1f
+private const val ZoomScaleThreshold = 0.01f
 
 class PlayerGestureHelper(
     private val appPreferences: AppPreferences,
@@ -62,20 +69,21 @@ class PlayerGestureHelper(
 
             return@onSingleTapConfirmed true
         }
-        onDoubleTap { e ->
-
-            // Disables double tap gestures if view is locked
-            if (isControlsLocked) return@onDoubleTap false
-
-            val isFastForward = e.isInRightHalfOf(playerView)
-            performDoubleTapSeek(isFastForward)
-
-            return@onDoubleTap true
-        }
+        onDoubleTap(::doubleTapSeek)
     }
 
     private fun PlayerView.showHideController() {
         if (!isControllerFullyVisible) showController() else hideController()
+    }
+
+    private fun doubleTapSeek(event: MotionEvent): Boolean {
+        // Disables double tap gestures if view is locked
+        if (isControlsLocked) return false
+
+        val isFastForward = event.isInRightHalfOf(playerView)
+        performDoubleTapSeek(isFastForward)
+
+        return true
     }
 
     private fun MotionEvent.isInRightHalfOf(view: View): Boolean {
@@ -98,33 +106,52 @@ class PlayerGestureHelper(
                    distanceX: Float,
                    distanceY: Float ->
             // Excludes area where app gestures conflicting with system gestures
-            if (inExclusionArea(firstEvent)) return@onScroll false
+            if (firstEvent.inExclusionArea()) return@onScroll false
             // Disables seek gestures if view is locked
             if (isControlsLocked) return@onScroll false
-
             // Check whether swipe was oriented vertically
-            if (abs(distanceY / distanceX) < 2) {
-                return@onScroll if ((abs(currentEvent.x - firstEvent.x) > 50 || swipeGestureProgressOpen) &&
-                    !swipeGestureBrightnessOpen &&
-                    !swipeGestureVolumeOpen &&
-                    (SystemClock.elapsedRealtime() - lastScaleEvent) > 200
-                ) {
-                    val currentPos = playerView.player?.currentPosition ?: 0
-                    val vidDuration = (playerView.player?.duration ?: 0).coerceAtLeast(0)
+            if (isVerticalSwipe(distanceX, distanceY).not())
+                return@onScroll true
+            if (shouldPerformSwipeSeek(firstEvent.x, currentEvent.x).not())
+                return@onScroll false
 
-                    val difference = ((currentEvent.x - firstEvent.x) * 90).toLong()
-                    val newPos = (currentPos + difference).coerceIn(0, vidDuration)
+            performSwipeSeek(firstEvent.x, currentEvent.x)
 
-                    activity.binding.progressScrubberLayout.visibility = View.VISIBLE
-                    activity.binding.progressScrubberText.text =
-                        "${longToTimestamp(difference)} [${longToTimestamp(newPos, true)}]"
-                    swipeGestureValueTrackerProgress = newPos
-                    swipeGestureProgressOpen = true
-                    true
-                } else false
-            }
             return@onScroll true
         }
+    }
+
+    private fun performSwipeSeek(oldX: Float, newX: Float) {
+        val currentPos = playerView.player?.currentPosition ?: 0
+        val vidDuration = (playerView.player?.duration ?: 0).coerceAtLeast(0)
+
+        val difference = ((newX - oldX) * 90).toLong()
+        val newPos = (currentPos + difference).coerceIn(0, vidDuration)
+
+        activity.binding.progressScrubberLayout.visibility = View.VISIBLE
+        setSwipeSeekScrubberText(difference, newPos)
+        swipeGestureValueTrackerProgress = newPos
+        swipeGestureProgressOpen = true
+    }
+
+    private fun setSwipeSeekScrubberText(difference: Long, newPos: Long) {
+        val scrubberText = "${difference.toTimestamp()} [${newPos.toTimestamp(true)}]"
+        activity.binding.progressScrubberText.text = scrubberText
+    }
+
+    private fun isVerticalSwipe(
+        distanceX: Float,
+        distanceY: Float
+    ) = abs(distanceY / distanceX) < 2
+
+    private fun shouldPerformSwipeSeek(oldX: Float, newX: Float): Boolean {
+        val notAccidental = abs(newX - oldX) > MinimumSeekSwipeDistance
+        val elapsedTime = SystemClock.elapsedRealtime()
+        val scaleEventFinished = (elapsedTime - lastScaleEvent) > MinimumPostScaleWaitTimeMillis
+        return (notAccidental || swipeGestureProgressOpen) &&
+               !swipeGestureBrightnessOpen &&
+               !swipeGestureVolumeOpen && scaleEventFinished
+
     }
 
     @SuppressLint("SetTextI18n")
@@ -136,7 +163,7 @@ class PlayerGestureHelper(
                    distanceX: Float,
                    distanceY: Float ->
             // Excludes area where app gestures conflicting with system gestures
-            if (inExclusionArea(firstEvent)) return@onScroll false
+            if (firstEvent.inExclusionArea()) return@onScroll false
             // Disables volume gestures when player is locked
             if (isControlsLocked) return@onScroll false
 
@@ -149,7 +176,7 @@ class PlayerGestureHelper(
 
             // Distance to swipe to go from min to max
             val distanceFull =
-                playerView.measuredHeight * Constants.FULL_SWIPE_RANGE_SCREEN_RATIO
+                playerView.measuredHeight * FullSwipeRangeScreenRatio
             val ratioChange = distanceY / distanceFull
 
             if (firstEvent.x.toInt() > viewCenterX) {
@@ -252,7 +279,7 @@ class PlayerGestureHelper(
             if (isControlsLocked) return@onScale false
             lastScaleEvent = SystemClock.elapsedRealtime()
             val scaleFactor = detector.scaleFactor
-            if (abs(scaleFactor - Constants.ZOOM_SCALE_BASE) > Constants.ZOOM_SCALE_THRESHOLD) {
+            if (abs(scaleFactor - ZoomScaleBase) > ZoomScaleThreshold) {
                 isZoomEnabled = scaleFactor > 1
                 updateZoomMode(isZoomEnabled)
             }
@@ -300,9 +327,9 @@ class PlayerGestureHelper(
         }
     }
 
-    private fun longToTimestamp(duration: Long, noSign: Boolean = false): String {
-        val sign = if (noSign) "" else if (duration < 0) "-" else "+"
-        val seconds = abs(duration).div(1000)
+    private fun Long.toTimestamp(noSign: Boolean = false): String {
+        val sign = if (noSign) "" else if (this < 0) "-" else "+"
+        val seconds = abs(this).div(1000)
 
         return String.format(
             "%s%02d:%02d:%02d",
@@ -313,22 +340,19 @@ class PlayerGestureHelper(
         )
     }
 
-    /**
-     * Check if [firstEvent] is in the gesture exclusion area
-     */
-    private fun inExclusionArea(firstEvent: MotionEvent): Boolean {
+    private fun MotionEvent.inExclusionArea(): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val insets =
                 playerView.rootWindowInsets.getInsetsIgnoringVisibility(WindowInsets.Type.systemGestures())
 
-            if ((firstEvent.x < insets.left) || (firstEvent.x > (screenWidth - insets.right)) ||
-                (firstEvent.y < insets.top) || (firstEvent.y > (screenHeight - insets.bottom))
+            if ((x < insets.left) || (x > (screenWidth - insets.right)) ||
+                (y < insets.top) || (y > (screenHeight - insets.bottom))
             )
                 return true
-        } else if (firstEvent.y < playerView.resources.dip(Constants.GESTURE_EXCLUSION_AREA_VERTICAL) ||
-            firstEvent.y > screenHeight - playerView.resources.dip(Constants.GESTURE_EXCLUSION_AREA_VERTICAL) ||
-            firstEvent.x < playerView.resources.dip(Constants.GESTURE_EXCLUSION_AREA_HORIZONTAL) ||
-            firstEvent.x > screenWidth - playerView.resources.dip(Constants.GESTURE_EXCLUSION_AREA_HORIZONTAL)
+        } else if (y < playerView.resources.dip(GestureExclusionAreaVertical) ||
+            y > screenHeight - playerView.resources.dip(GestureExclusionAreaVertical) ||
+            x < playerView.resources.dip(GestureExclusionAreaHorizontal) ||
+            x > screenWidth - playerView.resources.dip(GestureExclusionAreaHorizontal)
         )
             return true
         return false
