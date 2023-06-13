@@ -28,6 +28,8 @@ import dev.jdtech.jellyfin.utils.bif.BifUtil
 import dev.jdtech.jellyfin.utils.seeker.DefaultSeeker
 import dev.jdtech.jellyfin.utils.seeker.SeekParameters
 import dev.jdtech.jellyfin.utils.seeker.Seeker
+import java.util.UUID
+import javax.inject.Inject
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -37,8 +39,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
-import java.util.UUID
-import javax.inject.Inject
 
 @HiltViewModel
 class PlayerActivityViewModel
@@ -46,7 +46,7 @@ class PlayerActivityViewModel
 constructor(
     private val application: Application,
     private val jellyfinRepository: JellyfinRepository,
-    private val appPreferences: AppPreferences,
+    private val appPreferences: AppPreferences
 ) : ViewModel(), Player.Listener {
 
     val seeker: Seeker
@@ -251,14 +251,15 @@ constructor(
                 items.first { it.itemId.toString() == player.currentMediaItem?.mediaId }
                     .let { item ->
                         if (item.parentIndexNumber != null && item.indexNumber != null
-                        )
+                        ) {
                             _currentItemTitle.value = if (item.indexNumberEnd == null) {
                                 "S${item.parentIndexNumber}:E${item.indexNumber} - ${item.name}"
                             } else {
                                 "S${item.parentIndexNumber}:E${item.indexNumber}-${item.indexNumberEnd} - ${item.name}"
                             }
-                        else
+                        } else {
                             _currentItemTitle.value = item.name
+                        }
 
                         jellyfinRepository.postPlaybackStart(item.itemId)
 

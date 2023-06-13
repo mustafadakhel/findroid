@@ -52,29 +52,32 @@ class PlayerGestureDetector : PlayerGestureDetectorScope {
     }
 
     fun create(context: Context): GestureDetector {
-        return GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                return onSingleTapConfirmedAction?.invoke(e) ?: super.onSingleTapConfirmed(e)
-            }
+        return GestureDetector(
+            context,
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                    return onSingleTapConfirmedAction?.invoke(e) ?: super.onSingleTapConfirmed(e)
+                }
 
-            override fun onDoubleTap(e: MotionEvent): Boolean {
-                return onDoubleTapAction?.invoke(e) ?: super.onDoubleTap(e)
-            }
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    return onDoubleTapAction?.invoke(e) ?: super.onDoubleTap(e)
+                }
 
-            override fun onScroll(
-                firstEvent: MotionEvent,
-                secondEvent: MotionEvent,
-                distanceX: Float,
-                distanceY: Float
-            ): Boolean {
-                return onScrollAction?.invoke(
-                    firstEvent,
-                    secondEvent,
-                    distanceX,
-                    distanceY
-                ) ?: super.onScroll(firstEvent, secondEvent, distanceX, distanceY)
+                override fun onScroll(
+                    firstEvent: MotionEvent,
+                    secondEvent: MotionEvent,
+                    distanceX: Float,
+                    distanceY: Float
+                ): Boolean {
+                    return onScrollAction?.invoke(
+                        firstEvent,
+                        secondEvent,
+                        distanceX,
+                        distanceY
+                    ) ?: super.onScroll(firstEvent, secondEvent, distanceX, distanceY)
+                }
             }
-        })
+        )
     }
 }
 
@@ -116,6 +119,7 @@ class PlayerScaleGestureDetector : PlayerScaleGestureDetectorScope {
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
                     return onScaleAction?.invoke(detector) ?: false
                 }
-            })
+            }
+        )
     }
 }

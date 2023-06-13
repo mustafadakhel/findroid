@@ -1,8 +1,6 @@
 package dev.jdtech.jellyfin
 
-import android.content.Context
 import android.content.pm.ActivityInfo
-import android.media.AudioManager
 import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
@@ -62,8 +60,6 @@ class PlayerActivity : BasePlayerActivity() {
             playerGestureHelper = PlayerGestureHelper(
                 appPreferences,
                 this,
-                binding.playerView,
-                getSystemService(Context.AUDIO_SERVICE) as AudioManager,
                 viewModel.seeker
             )
         }
