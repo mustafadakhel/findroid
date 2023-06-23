@@ -1,9 +1,7 @@
 package dev.jdtech.jellyfin.utils
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.res.Resources
-import android.media.AudioManager
 import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
@@ -21,6 +19,7 @@ import dev.jdtech.jellyfin.mpv.MPVPlayer
 import dev.jdtech.jellyfin.utils.gesture.gestureDetector
 import dev.jdtech.jellyfin.utils.gesture.scaleGestureDetector
 import dev.jdtech.jellyfin.utils.seeker.Seeker
+import dev.jdtech.jellyfin.utils.volume.VolumeControl
 import kotlin.math.abs
 import timber.log.Timber
 
@@ -35,13 +34,11 @@ private const val ZoomScaleThreshold = 0.01f
 class PlayerGestureHelper(
     private val appPreferences: AppPreferences,
     private val activity: PlayerActivity,
-    private val seeker: Seeker
+    private val seeker: Seeker,
+    private val volumeControl: VolumeControl
 ) {
     private val playerView: PlayerView
         get() = activity.binding.playerView
-    private val audioManager: AudioManager by lazy {
-        activity.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    }
 
     /**
      * Tracks whether video content should fill the screen, cutting off unwanted content on the sides.
@@ -55,7 +52,6 @@ class PlayerGestureHelper(
      * (depending on the direction) as the gesture progresses.
      */
 
-    private var swipeGestureValueTrackerVolume = -1f
     private var swipeGestureValueTrackerBrightness = -1f
     private var swipeGestureValueTrackerProgress = -1L
 
@@ -109,20 +105,16 @@ class PlayerGestureHelper(
         playerView.context
     ) {
         onScroll { firstEvent: MotionEvent,
-                currentEvent: MotionEvent,
-                distanceX: Float,
-                distanceY: Float ->
+                   currentEvent: MotionEvent,
+                   distanceX: Float,
+                   distanceY: Float ->
             // Excludes area where app gestures conflicting with system gestures
             if (firstEvent.inExclusionArea()) return@onScroll false
             // Disables seek gestures if view is locked
             if (isControlsLocked) return@onScroll false
             // Check whether swipe was oriented vertically
-            if (isVerticalSwipe(distanceX, distanceY).not()) {
-                return@onScroll true
-            }
-            if (shouldPerformSwipeSeek(firstEvent.x, currentEvent.x).not()) {
-                return@onScroll false
-            }
+            if (isVerticalSwipe(distanceX, distanceY).not()) return@onScroll true
+            if (shouldPerformSwipeSeek(firstEvent.x, currentEvent.x).not()) return@onScroll false
 
             performSwipeSeek(firstEvent.x, currentEvent.x)
 
@@ -135,8 +127,8 @@ class PlayerGestureHelper(
         val elapsedTime = SystemClock.elapsedRealtime()
         val scaleEventFinished = (elapsedTime - lastScaleEvent) > MinimumPostScaleWaitTimeMillis
         return (notAccidental || swipeGestureProgressOpen) &&
-            !swipeGestureBrightnessOpen &&
-            !swipeGestureVolumeOpen && scaleEventFinished
+               !swipeGestureBrightnessOpen &&
+               !swipeGestureVolumeOpen && scaleEventFinished
     }
 
     private fun performSwipeSeek(oldX: Float, newX: Float) {
@@ -162,23 +154,15 @@ class PlayerGestureHelper(
         playerView.context
     ) {
         onScroll { firstEvent: MotionEvent,
-                _: MotionEvent,
-                distanceX: Float,
-                distanceY: Float ->
+                   _: MotionEvent,
+                   distanceX: Float,
+                   distanceY: Float ->
             // Excludes area where app gestures conflicting with system gestures
-            if (firstEvent.inExclusionArea()) {
-                return@onScroll false
-            }
+            if (firstEvent.inExclusionArea()) return@onScroll false
             // Disables volume gestures when player is locked
-            if (isControlsLocked) {
-                return@onScroll false
-            }
-            if (isVerticalSwipe(distanceX, distanceY)) {
-                return@onScroll false
-            }
-            if (shouldPerformVerticalSwipe().not()) {
-                return@onScroll false
-            }
+            if (isControlsLocked) return@onScroll false
+            if (isVerticalSwipe(distanceX, distanceY)) return@onScroll false
+            if (shouldPerformVerticalSwipe().not()) return@onScroll false
 
             // Distance to swipe to go from min to max
             val distanceFull = playerView.measuredHeight * FullSwipeRangeScreenRatio
@@ -200,28 +184,15 @@ class PlayerGestureHelper(
     }
 
     private fun performVolumeChange(ratioChange: Float) {
-        val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-        if (swipeGestureValueTrackerVolume == -1f) {
-            swipeGestureValueTrackerVolume = currentVolume.toFloat()
-        }
+        val maxVolume = volumeControl.getMaxVolume()
 
-        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        val change = ratioChange * maxVolume
-        swipeGestureValueTrackerVolume =
-            (swipeGestureValueTrackerVolume + change).coerceIn(0f, maxVolume.toFloat())
+        volumeControl.setVolumeByRatio(ratioChange)
 
-        audioManager.setStreamVolume(
-            AudioManager.STREAM_MUSIC,
-            swipeGestureValueTrackerVolume.toInt(),
-            0
-        )
-
+        val newVolumeRatio = volumeControl.currentVolumeRatio
         activity.binding.gestureVolumeLayout.visibility = View.VISIBLE
         activity.binding.gestureVolumeProgressBar.max = maxVolume
-        activity.binding.gestureVolumeProgressBar.progress =
-            swipeGestureValueTrackerVolume.toInt()
-        val process =
-            (swipeGestureValueTrackerVolume / maxVolume.toFloat()).times(100).toInt()
+        activity.binding.gestureVolumeProgressBar.progress = newVolumeRatio.toInt()
+        val process = (newVolumeRatio / maxVolume.toFloat()).times(100).toInt()
         activity.binding.gestureVolumeText.text = "$process%"
         activity.binding.gestureVolumeImage.setImageLevel(process)
 

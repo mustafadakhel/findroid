@@ -1,6 +1,8 @@
 package dev.jdtech.jellyfin
 
 import android.content.pm.ActivityInfo
+import android.media.AudioManager
+import android.os.Build.VERSION_CODES.R
 import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
@@ -22,12 +24,13 @@ import dev.jdtech.jellyfin.dialogs.SpeedSelectionDialogFragment
 import dev.jdtech.jellyfin.dialogs.TrackSelectionDialogFragment
 import dev.jdtech.jellyfin.mpv.MPVPlayer
 import dev.jdtech.jellyfin.mpv.TrackType
-import dev.jdtech.jellyfin.player.video.R as PlayerVideoR
 import dev.jdtech.jellyfin.utils.PlayerGestureHelper
 import dev.jdtech.jellyfin.utils.PreviewScrubListener
+import dev.jdtech.jellyfin.utils.volume.DefaultVolumeControl
 import dev.jdtech.jellyfin.viewmodels.PlayerActivityViewModel
 import javax.inject.Inject
 import timber.log.Timber
+import dev.jdtech.jellyfin.player.video.R as PlayerVideoR
 
 var isControlsLocked: Boolean = false
 
@@ -60,7 +63,8 @@ class PlayerActivity : BasePlayerActivity() {
             playerGestureHelper = PlayerGestureHelper(
                 appPreferences,
                 this,
-                viewModel.seeker
+                viewModel.seeker,
+                DefaultVolumeControl(getSystemService(AudioManager::class.java))
             )
         }
 
