@@ -7,9 +7,13 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewPropertyAnimator
 import android.view.WindowInsets
 import android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL
 import android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
+import android.widget.ImageView
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import dev.jdtech.jellyfin.AppPreferences
@@ -22,6 +26,7 @@ import dev.jdtech.jellyfin.utils.seeker.Seeker
 import dev.jdtech.jellyfin.utils.volume.VolumeControl
 import kotlin.math.abs
 import timber.log.Timber
+import kotlin.math.abs
 
 private const val MinimumSeekSwipeDistance = 50
 private const val MinimumPostScaleWaitTimeMillis = 200
@@ -80,23 +85,33 @@ class PlayerGestureHelper(
     private fun doubleTapSeek(event: MotionEvent): Boolean {
         // Disables double tap gestures if view is locked
         if (isControlsLocked) return false
+        val viewWidth = playerView.measuredWidth
+        val areaWidth = viewWidth / 5 // Divide the view into 5 parts: 2:1:2
 
-        val isFastForward = event.isInRightHalfOf(playerView)
-        performDoubleTapSeek(isFastForward)
+        // Define the areas and their boundaries
+        val leftmostAreaStart = 0
+        val middleAreaStart = areaWidth * 2
+        val rightmostAreaStart = middleAreaStart + areaWidth
+
+        performDoubleTapSeek(DoubleTapArea.from(e.x))
 
         return true
     }
 
-    private fun MotionEvent.isInRightHalfOf(view: View): Boolean {
-        val viewCenterX = view.measuredWidth / 2
-        return x.toInt() > viewCenterX
-    }
-
-    private fun performDoubleTapSeek(fastForward: Boolean) {
-        if (fastForward) {
-            seeker.fastForward()
-        } else {
-            seeker.rewind()
+    private fun performDoubleTapSeek(area:DoubleTapArea) {
+        when (area) {
+            in leftmostAreaStart until middleAreaStart -> {
+                // Tapped on the leftmost area (seek backward)
+                rewind()
+            }
+            in middleAreaStart until rightmostAreaStart -> {
+                // Tapped on the middle area (toggle pause/unpause)
+                togglePlayback()
+            }
+            in rightmostAreaStart until viewWidth -> {
+                // Tapped on the rightmost area (seek forward)
+                fastForward()
+            }
         }
     }
 
@@ -108,6 +123,7 @@ class PlayerGestureHelper(
                    currentEvent: MotionEvent,
                    distanceX: Float,
                    distanceY: Float ->
+            if (firstEvent == null) return@onScroll false
             // Excludes area where app gestures conflicting with system gestures
             if (firstEvent.inExclusionArea()) return@onScroll false
             // Disables seek gestures if view is locked
@@ -157,6 +173,7 @@ class PlayerGestureHelper(
                    _: MotionEvent,
                    distanceX: Float,
                    distanceY: Float ->
+            if (firstEvent == null) return false
             // Excludes area where app gestures conflicting with system gestures
             if (firstEvent.inExclusionArea()) return@onScroll false
             // Disables volume gestures when player is locked
