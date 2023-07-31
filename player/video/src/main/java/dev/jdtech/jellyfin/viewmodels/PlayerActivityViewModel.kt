@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.AudioAttributes
@@ -47,6 +48,7 @@ constructor(
     private val application: Application,
     private val jellyfinRepository: JellyfinRepository,
     private val appPreferences: AppPreferences,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel(), Player.Listener {
 
     val seeker: Seeker
@@ -76,8 +78,8 @@ constructor(
 
     val trackSelector = DefaultTrackSelector(application)
     var playWhenReady = true
-    private var currentMediaItemIndex = 0
-    private var playbackPosition: Long = 0
+    private var currentMediaItemIndex = savedStateHandle["mediaItemIndex"] ?: 0
+    private var playbackPosition: Long = savedStateHandle["position"] ?: 0
 
     var playbackSpeed: Float = 1f
     var disableSubtitle: Boolean = false
@@ -89,18 +91,18 @@ constructor(
             player = MPVPlayer(
                 application,
                 false,
-                appPreferences
+                appPreferences,
             )
         } else {
             val renderersFactory =
                 DefaultRenderersFactory(application).setExtensionRendererMode(
-                    DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+                    DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON,
                 )
             trackSelector.setParameters(
                 trackSelector.buildUponParameters()
                     .setTunnelingEnabled(true)
                     .setPreferredAudioLanguage(appPreferences.preferredAudioLanguage)
-                    .setPreferredTextLanguage(appPreferences.preferredSubtitleLanguage)
+                    .setPreferredTextLanguage(appPreferences.preferredSubtitleLanguage),
             )
             player = ExoPlayer.Builder(application, renderersFactory)
                 .setTrackSelector(trackSelector)
@@ -109,7 +111,8 @@ constructor(
                         .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
                         .setUsage(C.USAGE_MEDIA)
                         .build(),
-                    /* handleAudioFocus = */ true
+                    /* handleAudioFocus = */
+                    true,
                 )
                 .setSeekBackIncrementMs(appPreferences.playerSeekBackIncrement)
                 .setSeekForwardIncrementMs(appPreferences.playerSeekForwardIncrement)
@@ -120,8 +123,12 @@ constructor(
     }
 
     fun initializePlayer(
-        items: Array<PlayerItem>
+        items: Array<PlayerItem>,
     ) {
+        // Skip initialization when there are already items
+        if (this.items.isNotEmpty()) {
+            return
+        }
         this.items = items
         player.addListener(this)
 
@@ -152,7 +159,7 @@ constructor(
                             .setMediaMetadata(
                                 MediaMetadata.Builder()
                                     .setTitle(item.name)
-                                    .build()
+                                    .build(),
                             )
                             .setSubtitleConfigurations(mediaSubtitles)
                             .build()
@@ -162,10 +169,16 @@ constructor(
                 Timber.e(e)
             }
 
+            val startPosition = if (playbackPosition == 0L) {
+                items.getOrNull(currentMediaItemIndex)?.playbackPosition ?: C.TIME_UNSET
+            } else {
+                playbackPosition
+            }
+
             player.setMediaItems(
                 mediaItems,
                 currentMediaItemIndex,
-                items.getOrNull(currentMediaItemIndex)?.playbackPosition ?: C.TIME_UNSET
+                startPosition,
             )
             if (appPreferences.playerMpv) { // For some reason, adding a 1ms delay between these two lines fixes a crash when playing with mpv from downloads
                 withContext(Dispatchers.IO) {
@@ -189,7 +202,7 @@ constructor(
                 jellyfinRepository.postPlaybackStop(
                     UUID.fromString(mediaId),
                     position.times(10000),
-                    position.div(duration.toFloat()).times(100).toInt()
+                    position.div(duration.toFloat()).times(100).toInt(),
                 )
             } catch (e: Exception) {
                 Timber.e(e)
@@ -197,9 +210,9 @@ constructor(
         }
 
         _currentTrickPlay.value = null
-        playWhenReady = player.playWhenReady
-        playbackPosition = position
-        currentMediaItemIndex = player.currentMediaItemIndex
+        playWhenReady = false
+        playbackPosition = 0L
+        currentMediaItemIndex = 0
         player.removeListener(this)
         player.release()
     }
@@ -207,6 +220,7 @@ constructor(
     private fun pollPosition(player: Player) {
         val playbackProgressRunnable = object : Runnable {
             override fun run() {
+                savedStateHandle["position"] = player.currentPosition
                 viewModelScope.launch {
                     if (player.currentMediaItem != null && player.currentMediaItem!!.mediaId.isNotEmpty()) {
                         val itemId = UUID.fromString(player.currentMediaItem!!.mediaId)
@@ -214,7 +228,7 @@ constructor(
                             jellyfinRepository.postPlaybackProgress(
                                 itemId,
                                 player.currentPosition.times(10000),
-                                !player.isPlaying
+                                !player.isPlaying,
                             )
                         } catch (e: Exception) {
                             Timber.e(e)
@@ -246,19 +260,21 @@ constructor(
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
         Timber.d("Playing MediaItem: ${mediaItem?.mediaId}")
+        savedStateHandle["mediaItemIndex"] = player.currentMediaItemIndex
         viewModelScope.launch {
             try {
                 items.first { it.itemId.toString() == player.currentMediaItem?.mediaId }
                     .let { item ->
                         if (item.parentIndexNumber != null && item.indexNumber != null
-                        )
+                        ) {
                             _currentItemTitle.value = if (item.indexNumberEnd == null) {
                                 "S${item.parentIndexNumber}:E${item.indexNumber} - ${item.name}"
                             } else {
                                 "S${item.parentIndexNumber}:E${item.indexNumber}-${item.indexNumberEnd} - ${item.name}"
                             }
-                        else
+                        } else {
                             _currentItemTitle.value = item.name
+                        }
 
                         jellyfinRepository.postPlaybackStart(item.itemId)
 
@@ -343,7 +359,7 @@ constructor(
 
                 jellyfinRepository.getTrickPlayData(
                     itemId,
-                    widthResolution
+                    widthResolution,
                 )?.let { byteArray ->
                     val trickPlayData =
                         BifUtil.trickPlayDecode(byteArray, widthResolution)

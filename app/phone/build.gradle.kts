@@ -11,13 +11,13 @@ plugins {
 
 android {
     namespace = "dev.jdtech.jellyfin"
-    compileSdk = 33
-    buildToolsVersion = "33.0.2"
+    compileSdk = 34
+    buildToolsVersion = "34.0.0"
 
     defaultConfig {
         applicationId = "dev.jdtech.jellyfin"
-        minSdk = 27
-        targetSdk = 33
+        minSdk = 28
+        targetSdk = 34
 
         val appVersionCode: Int by rootProject.extra
         val appVersionName: String by rootProject.extra
@@ -35,7 +35,7 @@ android {
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
         }
         register("staging") {
@@ -76,9 +76,9 @@ android {
 }
 
 ktlint {
+    version.set("0.50.0")
     android.set(true)
     ignoreFailures.set(false)
-    disabledRules.add("max-line-length")
 }
 
 dependencies {
@@ -105,7 +105,6 @@ dependencies {
     implementation(libs.androidx.preference)
     implementation(libs.androidx.recyclerview)
     implementation(libs.androidx.recyclerview.selection)
-    implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.swiperefreshlayout)
     implementation(libs.androidx.work)
     implementation(libs.coil)

@@ -24,12 +24,11 @@ import dev.jdtech.jellyfin.dialogs.SpeedSelectionDialogFragment
 import dev.jdtech.jellyfin.dialogs.TrackSelectionDialogFragment
 import dev.jdtech.jellyfin.mpv.MPVPlayer
 import dev.jdtech.jellyfin.mpv.TrackType
-import dev.jdtech.jellyfin.player.video.R as PlayerVideoR
 import dev.jdtech.jellyfin.utils.PlayerGestureHelper
 import dev.jdtech.jellyfin.utils.PreviewScrubListener
 import dev.jdtech.jellyfin.viewmodels.PlayerActivityViewModel
 import javax.inject.Inject
-import timber.log.Timber
+import dev.jdtech.jellyfin.player.video.R as PlayerVideoR
 
 var isControlsLocked: Boolean = false
 
@@ -46,7 +45,6 @@ class PlayerActivity : BasePlayerActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Timber.d("Creating player activity")
 
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -55,8 +53,12 @@ class PlayerActivity : BasePlayerActivity() {
         binding.playerView.player = viewModel.player
 
         val playerControls = binding.playerView.findViewById<View>(R.id.player_controls)
+        val lockedControls = binding.playerView.findViewById<View>(R.id.locked_player_view)
+
+        isControlsLocked = false
 
         configureInsets(playerControls)
+        configureInsets(lockedControls)
 
         if (appPreferences.playerGestures) {
             playerGestureHelper = PlayerGestureHelper(
@@ -74,7 +76,6 @@ class PlayerActivity : BasePlayerActivity() {
 
         binding.playerView.findViewById<View>(R.id.back_button_alt).setOnClickListener {
             finish()
-            isControlsLocked = false
         }
 
         val videoNameTextView = binding.playerView.findViewById<TextView>(R.id.video_name)
@@ -107,7 +108,7 @@ class PlayerActivity : BasePlayerActivity() {
                 is MPVPlayer -> {
                     TrackSelectionDialogFragment(TrackType.AUDIO, viewModel).show(
                         supportFragmentManager,
-                        "trackselectiondialog"
+                        "trackselectiondialog",
                     )
                 }
 
@@ -128,7 +129,7 @@ class PlayerActivity : BasePlayerActivity() {
                         this,
                         resources.getString(PlayerVideoR.string.select_audio_track),
                         viewModel.player,
-                        C.TRACK_TYPE_AUDIO
+                        C.TRACK_TYPE_AUDIO,
                     )
                     val trackSelectionDialog = trackSelectionDialogBuilder.build()
                     trackSelectionDialog.show()
@@ -158,7 +159,7 @@ class PlayerActivity : BasePlayerActivity() {
                 is MPVPlayer -> {
                     TrackSelectionDialogFragment(TrackType.SUBTITLE, viewModel).show(
                         supportFragmentManager,
-                        "trackselectiondialog"
+                        "trackselectiondialog",
                     )
                 }
 
@@ -179,7 +180,7 @@ class PlayerActivity : BasePlayerActivity() {
                         this,
                         resources.getString(PlayerVideoR.string.select_subtile_track),
                         viewModel.player,
-                        C.TRACK_TYPE_TEXT
+                        C.TRACK_TYPE_TEXT,
                     )
                     trackSelectionDialogBuilder.setShowDisableOption(true)
 
@@ -192,7 +193,7 @@ class PlayerActivity : BasePlayerActivity() {
         speedButton.setOnClickListener {
             SpeedSelectionDialogFragment(viewModel).show(
                 supportFragmentManager,
-                "speedselectiondialog"
+                "speedselectiondialog",
             )
         }
 
@@ -213,7 +214,7 @@ class PlayerActivity : BasePlayerActivity() {
                 imagePreview,
                 timeBar,
                 viewModel.player,
-                viewModel.currentTrickPlay
+                viewModel.currentTrickPlay,
             )
 
             timeBar.addListener(previewScrubListener)
