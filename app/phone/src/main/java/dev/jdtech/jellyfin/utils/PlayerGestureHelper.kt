@@ -86,7 +86,7 @@ class PlayerGestureHelper(
                 when (e.x.toInt()) {
                     in leftmostAreaStart until middleAreaStart -> {
                         // Tapped on the leftmost area (seek backward)
-                        seeker.rewind()
+                        rewind()
                     }
                     in middleAreaStart until rightmostAreaStart -> {
                         // Tapped on the middle area (toggle pause/unpause)
@@ -94,7 +94,7 @@ class PlayerGestureHelper(
                     }
                     in rightmostAreaStart until viewWidth -> {
                         // Tapped on the rightmost area (seek forward)
-                        seeker.fastForward()
+                        fastForward()
                     }
                 }
                 return true
@@ -103,26 +103,18 @@ class PlayerGestureHelper(
     )
 
     private fun fastForward() {
-        val currentPosition = playerView.player?.currentPosition ?: 0
-        val fastForwardPosition = currentPosition + appPreferences.playerSeekForwardIncrement
-        seekTo(fastForwardPosition)
+        seeker.fastForward()
         animateRipple(activity.binding.imageFfwdAnimationRipple)
     }
 
     private fun rewind() {
-        val currentPosition = playerView.player?.currentPosition ?: 0
-        val rewindPosition = currentPosition - appPreferences.playerSeekBackIncrement
-        seekTo(rewindPosition.coerceAtLeast(0))
+        seeker.rewind()
         animateRipple(activity.binding.imageRewindAnimationRipple)
     }
 
     private fun togglePlayback() {
         playerView.player?.playWhenReady = !playerView.player?.playWhenReady!!
         animateRipple(activity.binding.imagePlaybackAnimationRipple)
-    }
-
-    private fun seekTo(position: Long) {
-        playerView.player?.seekTo(position)
     }
 
     private fun animateRipple(image: ImageView) {
