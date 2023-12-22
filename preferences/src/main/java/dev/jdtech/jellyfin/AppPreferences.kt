@@ -81,6 +81,8 @@ constructor(
     val playerIntroSkipper get() = sharedPreferences.getBoolean(Constants.PREF_PLAYER_INTRO_SKIPPER, true)
     val playerTrickPlay get() = sharedPreferences.getBoolean(Constants.PREF_PLAYER_TRICK_PLAY, true)
 
+    val playerPipGesture get() = sharedPreferences.getBoolean(Constants.PREF_PLAYER_PIP_GESTURE, false)
+
     // Language
     val preferredAudioLanguage get() = sharedPreferences.getString(Constants.PREF_AUDIO_LANGUAGE, "")!!
     val preferredSubtitleLanguage get() = sharedPreferences.getString(Constants.PREF_SUBTITLE_LANGUAGE, "")!!
@@ -141,12 +143,5 @@ constructor(
             sharedPreferences.edit {
                 putString(Constants.PREF_SORT_ORDER, value)
             }
-        }
-
-    // Temp
-    var downloadsMigrated
-        get() = sharedPreferences.getBoolean("downloadsMigrated", false)
-        set(value) = sharedPreferences.edit {
-            putBoolean("downloadsMigrated", value)
         }
 }
