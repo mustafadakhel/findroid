@@ -9,7 +9,6 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Rect
 import android.media.AudioManager
-import android.os.Build.VERSION_CODES.R
 import android.os.Build
 import android.os.Bundle
 import android.os.Process
@@ -40,14 +39,14 @@ import dev.jdtech.jellyfin.dialogs.SpeedSelectionDialogFragment
 import dev.jdtech.jellyfin.dialogs.TrackSelectionDialogFragment
 import dev.jdtech.jellyfin.mpv.MPVPlayer
 import dev.jdtech.jellyfin.mpv.TrackType
-import dev.jdtech.jellyfin.utils.PlayerGestureHelper
+import dev.jdtech.jellyfin.utils.PlayerGestureHandler
 import dev.jdtech.jellyfin.utils.PreviewScrubListener
 import dev.jdtech.jellyfin.utils.volume.DefaultVolumeControl
 import dev.jdtech.jellyfin.viewmodels.PlayerActivityViewModel
 import dev.jdtech.jellyfin.viewmodels.PlayerEvents
+import javax.inject.Inject
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import javax.inject.Inject
 import dev.jdtech.jellyfin.player.video.R as PlayerVideoR
 
 var isControlsLocked: Boolean = false
@@ -59,7 +58,7 @@ class PlayerActivity : BasePlayerActivity() {
     lateinit var appPreferences: AppPreferences
 
     lateinit var binding: ActivityPlayerBinding
-    private var playerGestureHelper: PlayerGestureHelper? = null
+    private var playerGestureHandler: PlayerGestureHandler? = null
     override val viewModel: PlayerActivityViewModel by viewModels()
     private var previewScrubListener: PreviewScrubListener? = null
 
@@ -102,7 +101,7 @@ class PlayerActivity : BasePlayerActivity() {
                 if (visibility == View.GONE) {
                     hideSystemUI()
                 }
-            },
+            }
         )
 
         val playerControls = binding.playerView.findViewById<View>(R.id.player_controls)
@@ -114,11 +113,11 @@ class PlayerActivity : BasePlayerActivity() {
         configureInsets(lockedControls)
 
         if (appPreferences.playerGestures) {
-            playerGestureHelper = PlayerGestureHelper(
-                appPreferences,
-                this,
-                viewModel.seeker,
-                DefaultVolumeControl(getSystemService(AudioManager::class.java))
+            playerGestureHandler = PlayerGestureHandler(
+                activity = this,
+                appPreferences = appPreferences,
+                seeker = viewModel.seeker,
+                volumeControl = DefaultVolumeControl(getSystemService(AudioManager::class.java))
             )
         }
 
@@ -217,7 +216,7 @@ class PlayerActivity : BasePlayerActivity() {
                 is MPVPlayer -> {
                     TrackSelectionDialogFragment(TrackType.AUDIO, viewModel).show(
                         supportFragmentManager,
-                        "trackselectiondialog",
+                        "trackselectiondialog"
                     )
                 }
 
@@ -238,7 +237,7 @@ class PlayerActivity : BasePlayerActivity() {
                         this,
                         resources.getString(PlayerVideoR.string.select_audio_track),
                         viewModel.player,
-                        C.TRACK_TYPE_AUDIO,
+                        C.TRACK_TYPE_AUDIO
                     )
                     val trackSelectionDialog = trackSelectionDialogBuilder.build()
                     trackSelectionDialog.show()
@@ -268,7 +267,7 @@ class PlayerActivity : BasePlayerActivity() {
                 is MPVPlayer -> {
                     TrackSelectionDialogFragment(TrackType.SUBTITLE, viewModel).show(
                         supportFragmentManager,
-                        "trackselectiondialog",
+                        "trackselectiondialog"
                     )
                 }
 
@@ -289,7 +288,7 @@ class PlayerActivity : BasePlayerActivity() {
                         this,
                         resources.getString(PlayerVideoR.string.select_subtile_track),
                         viewModel.player,
-                        C.TRACK_TYPE_TEXT,
+                        C.TRACK_TYPE_TEXT
                     )
                     trackSelectionDialogBuilder.setShowDisableOption(true)
 
@@ -302,7 +301,7 @@ class PlayerActivity : BasePlayerActivity() {
         speedButton.setOnClickListener {
             SpeedSelectionDialogFragment(viewModel).show(
                 supportFragmentManager,
-                "speedselectiondialog",
+                "speedselectiondialog"
             )
         }
 
@@ -316,7 +315,7 @@ class PlayerActivity : BasePlayerActivity() {
             previewScrubListener = PreviewScrubListener(
                 imagePreview,
                 timeBar,
-                viewModel.player,
+                viewModel.player
             )
 
             timeBar.addListener(previewScrubListener!!)
@@ -346,7 +345,7 @@ class PlayerActivity : BasePlayerActivity() {
         val aspectRatio = binding.playerView.player?.videoSize?.let {
             Rational(
                 it.width.coerceAtMost((it.height * 2.39f).toInt()),
-                it.height.coerceAtMost((it.width * 2.39f).toInt()),
+                it.height.coerceAtMost((it.width * 2.39f).toInt())
             )
         }
 
@@ -357,7 +356,7 @@ class PlayerActivity : BasePlayerActivity() {
                 0,
                 space,
                 binding.playerView.width,
-                (binding.playerView.width.toFloat() / aspectRatio.toFloat()).toInt() + space,
+                (binding.playerView.width.toFloat() / aspectRatio.toFloat()).toInt() + space
             )
         } else {
             val space =
@@ -366,7 +365,7 @@ class PlayerActivity : BasePlayerActivity() {
                 space,
                 0,
                 (binding.playerView.height.toFloat() * aspectRatio.toFloat()).toInt() + space,
-                binding.playerView.height,
+                binding.playerView.height
             )
         }
 
@@ -397,7 +396,7 @@ class PlayerActivity : BasePlayerActivity() {
 
     override fun onPictureInPictureModeChanged(
         isInPictureInPictureMode: Boolean,
-        newConfig: Configuration,
+        newConfig: Configuration
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         if (!isInPictureInPictureMode) {

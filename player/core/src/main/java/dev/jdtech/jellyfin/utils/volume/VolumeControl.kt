@@ -12,7 +12,7 @@ interface VolumeControl {
     fun getVolume(): Int
     fun getMaxVolume(): Int
     fun setVolume(value: Int)
-    fun setVolumeByRatio(ratio: Float)
+    fun changeVolumeByRatio(ratio: Float)
     fun mute()
     fun unMute()
     fun changeMuteState(): MuteState

@@ -1,9 +1,18 @@
 package dev.jdtech.jellyfin.utils.gesture
 
 import android.content.Context
+import android.content.res.Resources
+import android.os.Build
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
+import android.view.View
+import android.view.WindowInsets
+import dev.jdtech.jellyfin.utils.dip
+import kotlin.math.abs
+
+private const val GestureExclusionAreaVertical = 48
+private const val GestureExclusionAreaHorizontal = 24
 
 fun gestureDetector(
     context: Context,
@@ -16,7 +25,7 @@ fun scaleGestureDetector(
 ): ScaleGestureDetector = PlayerScaleGestureDetector().apply(scope).create(context)
 
 private typealias OnScrollAction = (
-    firstEvent: MotionEvent,
+    firstEvent: MotionEvent?,
     currentEvent: MotionEvent,
     distanceX: Float,
     distanceY: Float
@@ -64,7 +73,7 @@ class PlayerGestureDetector : PlayerGestureDetectorScope {
                 }
 
                 override fun onScroll(
-                    firstEvent: MotionEvent,
+                    firstEvent: MotionEvent?,
                     secondEvent: MotionEvent,
                     distanceX: Float,
                     distanceY: Float
@@ -123,3 +132,38 @@ class PlayerScaleGestureDetector : PlayerScaleGestureDetectorScope {
         )
     }
 }
+
+fun MotionEvent.isInRightHalfOf(view: View): Boolean {
+    return x > view.measuredWidth / 2
+}
+
+fun MotionEvent.inExclusionArea(
+    view: View
+): Boolean {
+    val screenWidth = Resources.getSystem().displayMetrics.widthPixels
+    val screenHeight = Resources.getSystem().displayMetrics.heightPixels
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        val insets =
+            view.rootWindowInsets.getInsetsIgnoringVisibility(
+                WindowInsets.Type.systemGestures()
+            )
+
+        if ((x < insets.left) || (x > (screenWidth - insets.right)) ||
+            (y < insets.top) || (y > (screenHeight - insets.bottom))
+        ) {
+            return true
+        }
+    } else if (y < view.resources.dip(GestureExclusionAreaVertical) ||
+        y > screenHeight - view.resources.dip(GestureExclusionAreaVertical) ||
+        x < view.resources.dip(GestureExclusionAreaHorizontal) ||
+        x > screenWidth - view.resources.dip(GestureExclusionAreaHorizontal)
+    ) {
+        return true
+    }
+    return false
+}
+
+fun isVerticalSwipe(
+    distanceX: Float,
+    distanceY: Float
+) = abs(distanceY / distanceX) > 2

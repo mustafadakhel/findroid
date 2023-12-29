@@ -16,7 +16,7 @@ class DefaultVolumeControl(private val audioManager: AudioManager) : VolumeContr
         0
     )
 
-    override fun setVolumeByRatio(ratio: Float) {
+    override fun changeVolumeByRatio(ratio: Float) {
         val maxVolume = getMaxVolume()
         val change = ratio * maxVolume
         currentVolumeRatio = (currentVolumeRatio + change).coerceIn(0f, maxVolume.toFloat())
