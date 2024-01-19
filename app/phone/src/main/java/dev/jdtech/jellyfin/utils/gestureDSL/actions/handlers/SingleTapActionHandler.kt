@@ -3,7 +3,7 @@ package dev.jdtech.jellyfin.utils.gestureDSL.actions.handlers
 import dev.jdtech.jellyfin.utils.gestureDSL.actions.PlayerGestureAction
 import dev.jdtech.jellyfin.utils.gestureDSL.actions.handlers.base.PlayerGestureActionHandler
 
-interface SingleTapActions {
+fun interface SingleTapActions {
     fun singleTapConfirmed()
 }
 

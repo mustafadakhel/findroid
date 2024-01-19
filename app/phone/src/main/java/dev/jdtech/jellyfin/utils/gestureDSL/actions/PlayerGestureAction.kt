@@ -24,12 +24,6 @@ sealed interface PlayerGestureAction {
             val distanceX: Float,
             val distanceY: Float,
         ) : GestureActionParams
-
-        data object SwipeSeek : Swipe
-
-        data object Volume : Swipe
-
-        data object Brightness : Swipe
     }
 
     data object Zoom : PlayerGestureAction {

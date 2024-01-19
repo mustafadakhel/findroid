@@ -43,7 +43,10 @@ class DefaultBrightnessControl(
         }
     }
 
-    override fun setBrightness(value: Int) {
+    override fun setBrightness(value: Float) {
+        val layoutParams = window.attributes
+        layoutParams.screenBrightness = value
+        window.attributes = layoutParams
     }
 
     override fun changeBrightnessByRatio(ratio: Float) {
@@ -52,9 +55,7 @@ class DefaultBrightnessControl(
                 .plus(ratio)
                 .coerceIn(brightnessRange)
 
-        val layoutParams = window.attributes
-        layoutParams.screenBrightness = newBrightness
-        window.attributes = layoutParams
+        setBrightness(newBrightness)
     }
 
     override fun getMaxBrightness(): Float {
