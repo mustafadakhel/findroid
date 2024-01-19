@@ -24,11 +24,11 @@ import dev.jdtech.jellyfin.player.video.R
 import dev.jdtech.jellyfin.repository.JellyfinRepository
 import dev.jdtech.jellyfin.utils.bif.BifData
 import dev.jdtech.jellyfin.utils.bif.BifUtil
-import dev.jdtech.jellyfin.utils.seeker.DefaultSeeker
-import dev.jdtech.jellyfin.utils.seeker.SeekParameters
-import dev.jdtech.jellyfin.utils.seeker.Seeker
-import java.util.UUID
-import javax.inject.Inject
+import dev.jdtech.jellyfin.utils.playerControl.DefaultPlayerPlaybackControl
+import dev.jdtech.jellyfin.utils.playerControl.PlayerPlaybackControl
+import dev.jdtech.jellyfin.utils.playerControl.seeker.DefaultSeeker
+import dev.jdtech.jellyfin.utils.playerControl.seeker.SeekParameters
+import dev.jdtech.jellyfin.utils.playerControl.seeker.Seeker
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -41,6 +41,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.util.UUID
+import javax.inject.Inject
 
 @HiltViewModel
 class PlayerActivityViewModel
@@ -54,6 +56,7 @@ constructor(
 
     val seeker: Seeker
     val player: Player
+    val playerPlaybackControl: PlayerPlaybackControl
 
     private val _uiState = MutableStateFlow(
         UiState(
@@ -128,6 +131,7 @@ constructor(
         }
         val seekParameters = SeekParameters.fromUserPreferences(appPreferences)
         seeker = DefaultSeeker(seekParameters, player)
+        playerPlaybackControl = DefaultPlayerPlaybackControl(seeker, player)
     }
 
     fun initializePlayer(
@@ -269,15 +273,16 @@ constructor(
             try {
                 items.first { it.itemId.toString() == player.currentMediaItem?.mediaId }
                     .let { item ->
-                        val itemTitle = if (item.parentIndexNumber != null && item.indexNumber != null) {
-                            if (item.indexNumberEnd == null) {
-                                "S${item.parentIndexNumber}:E${item.indexNumber} - ${item.name}"
+                        val itemTitle =
+                            if (item.parentIndexNumber != null && item.indexNumber != null) {
+                                if (item.indexNumberEnd == null) {
+                                    "S${item.parentIndexNumber}:E${item.indexNumber} - ${item.name}"
+                                } else {
+                                    "S${item.parentIndexNumber}:E${item.indexNumber}-${item.indexNumberEnd} - ${item.name}"
+                                }
                             } else {
-                                "S${item.parentIndexNumber}:E${item.indexNumber}-${item.indexNumberEnd} - ${item.name}"
+                                item.name
                             }
-                        } else {
-                            item.name
-                        }
                         _uiState.update { it.copy(currentItemTitle = itemTitle) }
 
                         jellyfinRepository.postPlaybackStart(item.itemId)

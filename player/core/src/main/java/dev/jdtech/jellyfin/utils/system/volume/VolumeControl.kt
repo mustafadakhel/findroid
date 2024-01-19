@@ -1,10 +1,10 @@
-package dev.jdtech.jellyfin.utils.volume
+package dev.jdtech.jellyfin.utils.system.volume
 
 interface VolumeControl {
 
     enum class MuteState {
         Muted,
-        UnMuted
+        UnMuted,
     }
 
     var currentVolumeRatio: Float

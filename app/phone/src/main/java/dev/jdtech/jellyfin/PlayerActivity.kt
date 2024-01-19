@@ -8,13 +8,15 @@ import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Rect
-import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Process
 import android.util.Rational
 import android.view.View
+import android.view.ViewPropertyAnimator
 import android.view.WindowManager
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageButton
@@ -39,27 +41,56 @@ import dev.jdtech.jellyfin.dialogs.SpeedSelectionDialogFragment
 import dev.jdtech.jellyfin.dialogs.TrackSelectionDialogFragment
 import dev.jdtech.jellyfin.mpv.MPVPlayer
 import dev.jdtech.jellyfin.mpv.TrackType
-import dev.jdtech.jellyfin.utils.PlayerGestureHandler
+import dev.jdtech.jellyfin.utils.PlayerGestureViewControl
 import dev.jdtech.jellyfin.utils.PreviewScrubListener
-import dev.jdtech.jellyfin.utils.volume.DefaultVolumeControl
+import dev.jdtech.jellyfin.utils.brightness.createBrightnessControl
+import dev.jdtech.jellyfin.utils.gestureDSL.actions.handlers.DoubleTapActionHandler.DoubleTapArea
+import dev.jdtech.jellyfin.utils.gestureDSL.actions.handlers.PlayerGesturePrefs
+import dev.jdtech.jellyfin.utils.installPlayerGestureHandler
+import dev.jdtech.jellyfin.utils.system.DefaultSystemControl
+import dev.jdtech.jellyfin.utils.system.volume.createVolumeControl
 import dev.jdtech.jellyfin.viewmodels.PlayerActivityViewModel
 import dev.jdtech.jellyfin.viewmodels.PlayerEvents
-import javax.inject.Inject
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import javax.inject.Inject
 import dev.jdtech.jellyfin.player.video.R as PlayerVideoR
 
 var isControlsLocked: Boolean = false
 
 @AndroidEntryPoint
-class PlayerActivity : BasePlayerActivity() {
-
+class PlayerActivity :
+    BasePlayerActivity(), PlayerGestureViewControl {
     @Inject
     lateinit var appPreferences: AppPreferences
 
+    override val useController: Boolean
+        get() = binding.playerView.useController
+
+    private val systemControl by lazy {
+        if (appPreferences.playerBrightnessRemember) {
+            window.attributes.screenBrightness = appPreferences.playerBrightness
+        }
+        DefaultSystemControl(
+            createBrightnessControl(),
+            createVolumeControl(),
+        )
+    }
+
+    private val gesturePrefs by lazy {
+        PlayerGesturePrefs(
+            enableHorizontalSwipeGesture = appPreferences.playerGesturesSeek && isControlsLocked.not(),
+            enableRightVerticalSwipeGesture = appPreferences.playerGesturesVB && isControlsLocked.not(),
+            enableLeftVerticalSwipeGesture = appPreferences.playerGesturesVB && isControlsLocked.not(),
+            enableZoomGesture = appPreferences.playerGesturesZoom && isControlsLocked.not(),
+            enableDoubleTapAction = isControlsLocked.not(),
+        )
+    }
+
     lateinit var binding: ActivityPlayerBinding
-    private var playerGestureHandler: PlayerGestureHandler? = null
+
     override val viewModel: PlayerActivityViewModel by viewModels()
+
     private var previewScrubListener: PreviewScrubListener? = null
 
     private val isPipSupported by lazy {
@@ -74,14 +105,14 @@ class PlayerActivity : BasePlayerActivity() {
             appOps?.unsafeCheckOpNoThrow(
                 AppOpsManager.OPSTR_PICTURE_IN_PICTURE,
                 Process.myUid(),
-                packageName
+                packageName,
             ) == AppOpsManager.MODE_ALLOWED
         } else {
             @Suppress("DEPRECATION")
             appOps?.checkOpNoThrow(
                 AppOpsManager.OPSTR_PICTURE_IN_PICTURE,
                 Process.myUid(),
-                packageName
+                packageName,
             ) == AppOpsManager.MODE_ALLOWED
         }
     }
@@ -101,7 +132,7 @@ class PlayerActivity : BasePlayerActivity() {
                 if (visibility == View.GONE) {
                     hideSystemUI()
                 }
-            }
+            },
         )
 
         val playerControls = binding.playerView.findViewById<View>(R.id.player_controls)
@@ -113,11 +144,11 @@ class PlayerActivity : BasePlayerActivity() {
         configureInsets(lockedControls)
 
         if (appPreferences.playerGestures) {
-            playerGestureHandler = PlayerGestureHandler(
-                activity = this,
-                appPreferences = appPreferences,
-                seeker = viewModel.seeker,
-                volumeControl = DefaultVolumeControl(getSystemService(AudioManager::class.java))
+            binding.playerView.installPlayerGestureHandler(
+                playerGestureViewControl = this,
+                playerPlaybackControl = viewModel.playerPlaybackControl,
+                systemControl = systemControl,
+                prefs = gesturePrefs,
             )
         }
 
@@ -154,7 +185,6 @@ class PlayerActivity : BasePlayerActivity() {
                             skipIntroButton.setOnClickListener {
                                 currentIntro?.let {
                                     viewModel.seeker.seekTo(seconds = it.introEnd)
-//                                    binding.playerView.player?.seekTo((it.introEnd * 1000).toLong())
                                 }
                             }
 
@@ -216,7 +246,7 @@ class PlayerActivity : BasePlayerActivity() {
                 is MPVPlayer -> {
                     TrackSelectionDialogFragment(TrackType.AUDIO, viewModel).show(
                         supportFragmentManager,
-                        "trackselectiondialog"
+                        "trackselectiondialog",
                     )
                 }
 
@@ -233,12 +263,13 @@ class PlayerActivity : BasePlayerActivity() {
 
                     if (audioRenderer == null) return@setOnClickListener
 
-                    val trackSelectionDialogBuilder = TrackSelectionDialogBuilder(
-                        this,
-                        resources.getString(PlayerVideoR.string.select_audio_track),
-                        viewModel.player,
-                        C.TRACK_TYPE_AUDIO
-                    )
+                    val trackSelectionDialogBuilder =
+                        TrackSelectionDialogBuilder(
+                            this,
+                            resources.getString(PlayerVideoR.string.select_audio_track),
+                            viewModel.player,
+                            C.TRACK_TYPE_AUDIO,
+                        )
                     val trackSelectionDialog = trackSelectionDialogBuilder.build()
                     trackSelectionDialog.show()
                 }
@@ -267,7 +298,7 @@ class PlayerActivity : BasePlayerActivity() {
                 is MPVPlayer -> {
                     TrackSelectionDialogFragment(TrackType.SUBTITLE, viewModel).show(
                         supportFragmentManager,
-                        "trackselectiondialog"
+                        "trackselectiondialog",
                     )
                 }
 
@@ -284,12 +315,13 @@ class PlayerActivity : BasePlayerActivity() {
 
                     if (subtitleRenderer == null) return@setOnClickListener
 
-                    val trackSelectionDialogBuilder = TrackSelectionDialogBuilder(
-                        this,
-                        resources.getString(PlayerVideoR.string.select_subtile_track),
-                        viewModel.player,
-                        C.TRACK_TYPE_TEXT
-                    )
+                    val trackSelectionDialogBuilder =
+                        TrackSelectionDialogBuilder(
+                            this,
+                            resources.getString(PlayerVideoR.string.select_subtile_track),
+                            viewModel.player,
+                            C.TRACK_TYPE_TEXT,
+                        )
                     trackSelectionDialogBuilder.setShowDisableOption(true)
 
                     val trackSelectionDialog = trackSelectionDialogBuilder.build()
@@ -301,7 +333,7 @@ class PlayerActivity : BasePlayerActivity() {
         speedButton.setOnClickListener {
             SpeedSelectionDialogFragment(viewModel).show(
                 supportFragmentManager,
-                "speedselectiondialog"
+                "speedselectiondialog",
             )
         }
 
@@ -312,11 +344,12 @@ class PlayerActivity : BasePlayerActivity() {
         if (appPreferences.playerTrickPlay) {
             val imagePreview = binding.playerView.findViewById<ImageView>(R.id.image_preview)
             val timeBar = binding.playerView.findViewById<DefaultTimeBar>(R.id.exo_progress)
-            previewScrubListener = PreviewScrubListener(
-                imagePreview,
-                timeBar,
-                viewModel.player
-            )
+            previewScrubListener =
+                PreviewScrubListener(
+                    imagePreview,
+                    timeBar,
+                    viewModel.player,
+                )
 
             timeBar.addListener(previewScrubListener!!)
         }
@@ -342,32 +375,34 @@ class PlayerActivity : BasePlayerActivity() {
     private fun pipParams(): PictureInPictureParams {
         val displayAspectRatio = Rational(binding.playerView.width, binding.playerView.height)
 
-        val aspectRatio = binding.playerView.player?.videoSize?.let {
-            Rational(
-                it.width.coerceAtMost((it.height * 2.39f).toInt()),
-                it.height.coerceAtMost((it.width * 2.39f).toInt())
-            )
-        }
+        val aspectRatio =
+            binding.playerView.player?.videoSize?.let {
+                Rational(
+                    it.width.coerceAtMost((it.height * 2.39f).toInt()),
+                    it.height.coerceAtMost((it.width * 2.39f).toInt()),
+                )
+            }
 
-        val sourceRectHint = if (displayAspectRatio < aspectRatio!!) {
-            val space =
-                ((binding.playerView.height - (binding.playerView.width.toFloat() / aspectRatio.toFloat())) / 2).toInt()
-            Rect(
-                0,
-                space,
-                binding.playerView.width,
-                (binding.playerView.width.toFloat() / aspectRatio.toFloat()).toInt() + space
-            )
-        } else {
-            val space =
-                ((binding.playerView.width - (binding.playerView.height.toFloat() * aspectRatio.toFloat())) / 2).toInt()
-            Rect(
-                space,
-                0,
-                (binding.playerView.height.toFloat() * aspectRatio.toFloat()).toInt() + space,
-                binding.playerView.height
-            )
-        }
+        val sourceRectHint =
+            if (displayAspectRatio < aspectRatio!!) {
+                val space =
+                    ((binding.playerView.height - (binding.playerView.width.toFloat() / aspectRatio.toFloat())) / 2).toInt()
+                Rect(
+                    0,
+                    space,
+                    binding.playerView.width,
+                    (binding.playerView.width.toFloat() / aspectRatio.toFloat()).toInt() + space,
+                )
+            } else {
+                val space =
+                    ((binding.playerView.width - (binding.playerView.height.toFloat() * aspectRatio.toFloat())) / 2).toInt()
+                Rect(
+                    space,
+                    0,
+                    (binding.playerView.height.toFloat() * aspectRatio.toFloat()).toInt() + space,
+                    binding.playerView.height,
+                )
+            }
 
         return PictureInPictureParams.Builder()
             .setAspectRatio(aspectRatio)
@@ -396,11 +431,174 @@ class PlayerActivity : BasePlayerActivity() {
 
     override fun onPictureInPictureModeChanged(
         isInPictureInPictureMode: Boolean,
-        newConfig: Configuration
+        newConfig: Configuration,
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         if (!isInPictureInPictureMode) {
             binding.playerView.useController = true
+        }
+    }
+
+    private val hideGestureVolumeIndicatorOverlayAction =
+        Runnable {
+            binding.gestureVolumeLayout.visibility = View.GONE
+        }
+
+    override fun hideVolumeLayout() {
+        binding.gestureVolumeLayout.apply {
+            if (visibility == View.VISIBLE) {
+                removeCallbacks(hideGestureVolumeIndicatorOverlayAction)
+                postDelayed(hideGestureVolumeIndicatorOverlayAction, 1000)
+            }
+        }
+    }
+
+    override fun showVolumeLayout() {
+        binding.gestureVolumeLayout.visibility = View.VISIBLE
+    }
+
+    override fun setVolumeProgress(
+        maxVolume: Int,
+        currentVolume: Int,
+    ) {
+        binding.gestureVolumeProgressBar.max = maxVolume
+        binding.gestureVolumeProgressBar.progress = currentVolume
+    }
+
+    override fun setVolumeText(volumeText: String) {
+        binding.gestureVolumeText.text = volumeText
+    }
+
+    override fun setVolumeImageLevel(level: Int) {
+        binding.gestureVolumeImage.setImageLevel(level)
+    }
+
+    private val hideGestureProgressOverlayAction =
+        Runnable {
+            binding.progressScrubberLayout.visibility = View.GONE
+        }
+
+    override fun hideSwipeSeekLayout() {
+        binding.progressScrubberLayout.apply {
+            if (visibility == View.VISIBLE) {
+                removeCallbacks(hideGestureProgressOverlayAction)
+                postDelayed(hideGestureProgressOverlayAction, 1000)
+            }
+        }
+    }
+
+    override fun showSwipeSeekLayout() {
+        binding.progressScrubberLayout.visibility = View.VISIBLE
+    }
+
+    override fun setSwipeSeekText(swipeSeekText: String) {
+        binding.progressScrubberText.text = swipeSeekText
+    }
+
+    private val hideGestureBrightnessIndicatorOverlayAction =
+        Runnable {
+            binding.gestureBrightnessLayout.visibility = View.GONE
+            if (appPreferences.playerBrightnessRemember) {
+                appPreferences.playerBrightness = window.attributes.screenBrightness
+            }
+        }
+
+    override fun hideBrightnessLayout() {
+        binding.gestureBrightnessLayout.apply {
+            if (visibility == View.VISIBLE) {
+                removeCallbacks(hideGestureBrightnessIndicatorOverlayAction)
+                postDelayed(hideGestureBrightnessIndicatorOverlayAction, 1000)
+            }
+        }
+    }
+
+    override fun showBrightnessLayout() {
+        binding.gestureBrightnessLayout.visibility = View.VISIBLE
+    }
+
+    override fun setBrightnessProgress(
+        maxBrightness: Float,
+        currentBrightness: Float,
+    ) {
+        binding.gestureBrightnessProgressBar.max = maxBrightness.toInt()
+        binding.gestureBrightnessProgressBar.progress = currentBrightness.toInt()
+    }
+
+    override fun setBrightnessText(brightnessText: String) {
+        binding.gestureBrightnessText.text = brightnessText
+    }
+
+    override fun setBrightnessImageLevel(level: Int) {
+        binding.gestureBrightnessImage.setImageLevel(level)
+    }
+
+    override fun showDoubleTapReaction(doubleTapArea: DoubleTapArea) {
+        val reactionView =
+            when (doubleTapArea) {
+                DoubleTapArea.RightmostArea -> binding.imageFfwdAnimationRipple
+
+                DoubleTapArea.LeftmostArea -> binding.imageRewindAnimationRipple
+
+                DoubleTapArea.MiddleArea -> binding.imagePlaybackAnimationRipple
+            }
+        animateRipple(reactionView)
+    }
+
+    private fun animateRipple(image: ImageView) {
+        image
+            .animateSeekingRippleStart()
+            .withEndAction {
+                resetRippleImage(image)
+            }
+            .start()
+    }
+
+    private fun ImageView.animateSeekingRippleStart(): ViewPropertyAnimator {
+        val rippleImageHeight = this.height
+        val playerViewHeight = rootView.height.toFloat()
+        val playerViewWidth = rootView.width.toFloat()
+        val scaleDifference = playerViewHeight / rippleImageHeight
+        val playerViewAspectRatio = playerViewWidth / playerViewHeight
+        val scaleValue = scaleDifference * playerViewAspectRatio
+        return animate()
+            .alpha(1f)
+            .scaleX(scaleValue)
+            .scaleY(scaleValue)
+            .setDuration(180)
+            .setInterpolator(DecelerateInterpolator())
+    }
+
+    private fun resetRippleImage(image: ImageView) {
+        image
+            .animateSeekingRippleEnd()
+            .withEndAction {
+                image.scaleX = 1f
+                image.scaleY = 1f
+            }
+            .start()
+    }
+
+    private fun ImageView.animateSeekingRippleEnd() =
+        animate()
+            .alpha(0f)
+            .setDuration(150)
+            .setInterpolator(AccelerateInterpolator())
+
+    override fun showHideController() =
+        with(binding.playerView) {
+            if (!isControllerFullyVisible) showController() else hideController()
+        }
+
+    override fun updateZoomMode(zoom: Boolean) {
+        if (viewModel.player is MPVPlayer) {
+            (viewModel.player as MPVPlayer).updateZoomMode(zoom)
+        } else {
+            binding.playerView.resizeMode =
+                if (zoom) {
+                    AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                } else {
+                    AspectRatioFrameLayout.RESIZE_MODE_FIT
+                }
         }
     }
 }

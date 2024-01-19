@@ -1,4 +1,4 @@
-package dev.jdtech.jellyfin.utils.gesture
+package dev.jdtech.jellyfin.utils.gestureDSL
 
 import android.content.Context
 import android.content.res.Resources
@@ -16,19 +16,19 @@ private const val GestureExclusionAreaHorizontal = 24
 
 fun gestureDetector(
     context: Context,
-    scope: PlayerGestureDetectorScope.() -> Unit
+    scope: PlayerGestureDetectorScope.() -> Unit,
 ): GestureDetector = PlayerGestureDetector().apply(scope).create(context)
 
 fun scaleGestureDetector(
     context: Context,
-    scope: PlayerScaleGestureDetectorScope.() -> Unit
+    scope: PlayerScaleGestureDetectorScope.() -> Unit,
 ): ScaleGestureDetector = PlayerScaleGestureDetector().apply(scope).create(context)
 
 private typealias OnScrollAction = (
     firstEvent: MotionEvent?,
     currentEvent: MotionEvent,
     distanceX: Float,
-    distanceY: Float
+    distanceY: Float,
 ) -> Boolean
 
 private typealias OnSingleTapConfirmedAction = (e: MotionEvent) -> Boolean
@@ -76,16 +76,16 @@ class PlayerGestureDetector : PlayerGestureDetectorScope {
                     firstEvent: MotionEvent?,
                     secondEvent: MotionEvent,
                     distanceX: Float,
-                    distanceY: Float
+                    distanceY: Float,
                 ): Boolean {
                     return onScrollAction?.invoke(
                         firstEvent,
                         secondEvent,
                         distanceX,
-                        distanceY
+                        distanceY,
                     ) ?: super.onScroll(firstEvent, secondEvent, distanceX, distanceY)
                 }
-            }
+            },
         )
     }
 }
@@ -128,7 +128,7 @@ class PlayerScaleGestureDetector : PlayerScaleGestureDetectorScope {
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
                     return onScaleAction?.invoke(detector) ?: false
                 }
-            }
+            },
         )
     }
 }
@@ -138,14 +138,14 @@ fun MotionEvent.isInRightHalfOf(view: View): Boolean {
 }
 
 fun MotionEvent.inExclusionArea(
-    view: View
+    view: View,
 ): Boolean {
     val screenWidth = Resources.getSystem().displayMetrics.widthPixels
     val screenHeight = Resources.getSystem().displayMetrics.heightPixels
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
         val insets =
             view.rootWindowInsets.getInsetsIgnoringVisibility(
-                WindowInsets.Type.systemGestures()
+                WindowInsets.Type.systemGestures(),
             )
 
         if ((x < insets.left) || (x > (screenWidth - insets.right)) ||
@@ -165,5 +165,5 @@ fun MotionEvent.inExclusionArea(
 
 fun isVerticalSwipe(
     distanceX: Float,
-    distanceY: Float
+    distanceY: Float,
 ) = abs(distanceY / distanceX) > 2
